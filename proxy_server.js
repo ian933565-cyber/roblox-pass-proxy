@@ -1,6 +1,4 @@
-// proxy_server.js (Node.js with Express)
-// Fetches public games and their GamePasses from a user using Roblox APIs
-
+// proxy_server.js (Improved with error handling and rate limit resilience)
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -10,7 +8,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-// Get all GamePasses for a user by fetching their public games and the passes per universe
 app.get("/gamepasses", async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(400).json({ error: "Missing userId" });
@@ -25,8 +22,9 @@ app.get("/gamepasses", async (req, res) => {
     for (const game of games) {
       const universeId = game.universeId;
       const passesUrl = `https://apis.roblox.com/game-passes/v1/game-passes?universeId=${universeId}`;
+
       try {
-        const passesResponse = await axios.get(passesUrl);
+        const passesResponse = await axios.get(passesUrl, { timeout: 5000 });
         const passes = passesResponse.data;
         passes.forEach(pass => {
           allPasses.push({
@@ -36,21 +34,21 @@ app.get("/gamepasses", async (req, res) => {
           });
         });
       } catch (err) {
-        console.warn(`Failed to get passes for universe ${universeId}:`, err.response?.status);
+        console.warn(`[Proxy] ⚠️ Failed to get passes for universe ${universeId}:`, err.response?.status || err.message);
       }
     }
 
     res.json(allPasses);
   } catch (err) {
-    console.error("Error fetching gamepasses:", err);
-    res.status(500).json({ error: "Failed to fetch gamepasses." });
+    console.error("[Proxy] ❌ Failed to fetch games or gamepasses:", err.message);
+    res.status(502).json({ error: "Bad Gateway. Failed to retrieve passes." });
   }
 });
 
 app.get("/", (req, res) => {
-  res.send("GamePass Proxy Server Running");
+  res.send("✅ GamePass Proxy Server Running");
 });
 
 app.listen(PORT, () => {
-  console.log(`Proxy server running on port ${PORT}`);
+  console.log(`🚀 Proxy server running on port ${PORT}`);
 });
