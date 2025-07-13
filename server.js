@@ -12,19 +12,20 @@ app.get('/getGamepasses', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Missing userId parameter' });
 
   try {
-    // Step 1: Get public games from user
+    // Step 1: Get all public games created by the user
     const gamesResponse = await axios.get(`https://games.roblox.com/v2/users/${userId}/games`, {
       params: { accessFilter: 'Public', limit: 50 }
     });
 
-    const placeIds = gamesResponse.data.data.map(game => game.rootPlace.id);
+    // ✅ Correct: use game.id, not rootPlace.id
+    const gameIds = gamesResponse.data.data.map(game => game.id);
     const passIds = [];
 
-    for (const placeId of placeIds) {
+    for (const gameId of gameIds) {
       try {
-        const passRes = await axios.get(`https://games.roblox.com/v1/games/${placeId}/game-passes`, {
+        const passRes = await axios.get(`https://games.roblox.com/v1/games/${gameId}/game-passes`, {
           headers: {
-            'User-Agent': 'Roblox/WinInet' // ✅ Spoof Roblox client
+            'User-Agent': 'Roblox/WinInet' // Spoof Roblox client to avoid empty responses
           }
         });
 
@@ -35,7 +36,7 @@ app.get('/getGamepasses', async (req, res) => {
           }
         }
       } catch (subErr) {
-        console.warn(`Error fetching passes for place ${placeId}:`, subErr.message);
+        console.warn(`Error fetching passes for game ${gameId}:`, subErr.message);
       }
     }
 
