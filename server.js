@@ -1,7 +1,6 @@
 const express = require('express');
 const axios = require('axios');
 const app = express();
-
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
@@ -10,36 +9,36 @@ app.get('/', (req, res) => {
 
 app.get('/getGamepasses', async (req, res) => {
   const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ error: "Missing userId parameter" });
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId parameter" });
+  }
 
   try {
-    // Step 1: Get all public games owned by user
-    const gamesRes = await axios.get(`https://games.roblox.com/v2/users/${userId}/games`, {
-      params: { accessFilter: 'Public', limit: 50 }
-    });
-
-    const gameIds = gamesRes.data.data.map(game => game.id);
-    if (gameIds.length === 0) return res.json({ passIds: [] });
-
-    // Step 2: Get all Game Passes by user
-    const passesRes = await axios.get('https://catalog.roblox.com/v1/search/items', {
+    // Step 1: Get all Game Passes created by the user (browsable from the catalog)
+    const response = await axios.get("https://catalog.roblox.com/v1/search/items", {
       params: {
-        category: 11,
-        subcategory: 6,
-        limit: 30,
+        category: 11, // passes
+        subcategory: 6, // gamepasses
         creatorTargetId: userId,
-        creatorType: 'User',
-        sortOrder: 'Desc'
+        creatorType: "User",
+        limit: 30,
+        sortOrder: "Desc"
       }
     });
 
-    const validPassIds = passesRes.data.data
-      .filter(item => item.assetType === 34 && item.price > 0 && gameIds.includes(item.creatorHasVerifiedBadge ? item.creatorTargetId : item.creatorTargetId))
+    const data = response.data;
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      return res.json({ passIds: [] });
+    }
+
+    // Step 2: Filter out any invalid or zero-price passes
+    const passIds = data.data
+      .filter(item => item.assetType === 34 && item.price > 0)
       .map(item => item.id);
 
-    return res.json({ passIds: validPassIds });
+    return res.json({ passIds });
   } catch (err) {
-    console.error("Proxy Error:", err.message);
+    console.error("Error fetching passes:", err.message);
     return res.status(500).json({ error: "Failed to fetch gamepasses" });
   }
 });
