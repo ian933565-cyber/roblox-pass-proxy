@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.send('✅ Gamepass API Proxy Running');
+  res.send('✅ Gamepass Proxy Running');
 });
 
 app.get('/getGamepasses', async (req, res) => {
@@ -12,19 +12,19 @@ app.get('/getGamepasses', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Missing userId parameter' });
 
   try {
-    // Step 1: Get all public games from the user
+    // Step 1: Get public games from user
     const gamesResponse = await axios.get(`https://games.roblox.com/v2/users/${userId}/games`, {
       params: { accessFilter: 'Public', limit: 50 }
     });
 
-    const gameIds = gamesResponse.data.data.map(game => game.rootPlace.id);
+    const placeIds = gamesResponse.data.data.map(game => game.rootPlace.id);
     const passIds = [];
 
-    for (const placeId of gameIds) {
+    for (const placeId of placeIds) {
       try {
         const passRes = await axios.get(`https://games.roblox.com/v1/games/${placeId}/game-passes`, {
           headers: {
-            'User-Agent': 'Roblox/WinInet'
+            'User-Agent': 'Roblox/WinInet' // ✅ Spoof Roblox client
           }
         });
 
@@ -35,13 +35,13 @@ app.get('/getGamepasses', async (req, res) => {
           }
         }
       } catch (subErr) {
-        console.warn(`Failed to load passes for place ${placeId}: ${subErr.message}`);
+        console.warn(`Error fetching passes for place ${placeId}:`, subErr.message);
       }
     }
 
     res.json({ passIds });
   } catch (err) {
-    console.error('Proxy error:', err.message);
+    console.error('Main proxy error:', err.message);
     res.status(500).json({ error: 'Failed to fetch gamepasses' });
   }
 });
