@@ -1,54 +1,57 @@
-// proxy_server.js (Improved with error handling and rate limit resilience)
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-
+const express = require('express');
+const axios = require('axios');
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-
-app.get("/gamepasses", async (req, res) => {
+app.get('/getGamepasses', async (req, res) => {
   const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ error: "Missing userId" });
+
+  if (!userId) return res.status(400).json({ error: "Missing userId parameter" });
 
   try {
-    const gamesUrl = `https://games.roblox.com/v2/users/${userId}/games?sortOrder=Asc&limit=50`;
-    const gamesResponse = await axios.get(gamesUrl);
-    const games = gamesResponse.data.data || [];
+    // Step 1: Get public games
+    const gamesRes = await axios.get(`https://games.roblox.com/v2/users/${userId}/games`, {
+      params: { accessFilter: 'Public', limit: 50 }
+    });
 
-    const allPasses = [];
+    const gameIds = gamesRes.data.data.map(game => game.id);
+    if (gameIds.length === 0) return res.json({ passIds: [] });
 
-    for (const game of games) {
-      const universeId = game.universeId;
-      const passesUrl = `https://apis.roblox.com/game-passes/v1/game-passes?universeId=${universeId}`;
+    // Step 2: Get game passes
+    const passIds = [];
 
-      try {
-        const passesResponse = await axios.get(passesUrl, { timeout: 5000 });
-        const passes = passesResponse.data;
-        passes.forEach(pass => {
-          allPasses.push({
-            name: pass.name,
-            id: pass.id,
-            price: pass.price ?? 0
-          });
-        });
-      } catch (err) {
-        console.warn(`[Proxy] ⚠️ Failed to get passes for universe ${universeId}:`, err.response?.status || err.message);
+    for (const gameId of gameIds) {
+      const passesRes = await axios.get('https://catalog.roblox.com/v1/search/items', {
+        params: {
+          category: 11,
+          creatorTargetId: userId,
+          creatorType: 'User',
+          limit: 30,
+          sortOrder: 'Desc',
+          subcategory: 6,
+          contextCountryRegionId: 0
+        }
+      });
+
+      for (const item of passesRes.data.data) {
+        if (item.assetType === 34) { // 34 = GamePass
+          passIds.push(item.id);
+        }
       }
     }
 
-    res.json(allPasses);
+    res.json({ passIds });
   } catch (err) {
-    console.error("[Proxy] ❌ Failed to fetch games or gamepasses:", err.message);
-    res.status(502).json({ error: "Bad Gateway. Failed to retrieve passes." });
+    console.error(err.message);
+    res.status(500).json({ error: "Failed to fetch gamepasses" });
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("✅ GamePass Proxy Server Running");
+app.get('/', (req, res) => {
+  res.send("✅ Gamepass Proxy Running");
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Proxy server running on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
