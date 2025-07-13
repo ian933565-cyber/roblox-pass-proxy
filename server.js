@@ -9,19 +9,20 @@ app.get('/', (req, res) => {
 
 app.get('/getGamepasses', async (req, res) => {
   const userId = req.query.userId;
-  if (!userId) {
-    return res.status(400).json({ error: 'Missing userId parameter' });
+  if (!userId || isNaN(Number(userId))) {
+    return res.status(400).json({ error: 'Missing or invalid userId parameter' });
   }
 
   try {
-    const url = `https://apis.roblox.com/game-passes/v1/users/${userId}/game-passes?count=100`;
-    const response = await axios.get(url);
+    const response = await axios.get(
+      `https://apis.roblox.com/game-passes/v1/users/${userId}/game-passes?count=100`
+    );
 
     const passes = response.data?.data || [];
 
     const filteredPassIds = passes
       .filter(pass =>
-        pass.creatorId?.toString() === userId.toString() && // Only include passes created by the user
+        Number(pass.creatorId) === Number(userId) && // ✅ Ensure both are numbers
         pass.isForSale &&
         pass.price > 0
       )
@@ -29,8 +30,8 @@ app.get('/getGamepasses', async (req, res) => {
 
     res.json({ passIds: filteredPassIds });
   } catch (err) {
-    console.error("Error fetching passes:", err.message);
-    res.status(500).json({ error: "Failed to fetch gamepasses" });
+    console.error('Fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch gamepasses' });
   }
 });
 
