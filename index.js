@@ -1,38 +1,29 @@
 const express = require("express");
-const fetch = require("node-fetch");
-const cors = require("cors");
+const axios = require("axios");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-
-app.use("/", async (req, res) => {
-    const robloxUrl = `https://apis.roblox.com${req.originalUrl}`;
-    console.log("→ Anfrage an:", robloxUrl);
-
-    try {
-        const response = await fetch(robloxUrl, {
-            headers: {
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "application/json"
-            }
-        });
-
-        const contentType = response.headers.get("content-type");
-        const body = await response.text();
-
-        if (contentType && contentType.includes("application/json")) {
-            res.setHeader("Content-Type", "application/json");
-        }
-
-        res.status(response.status).send(body);
-    } catch (err) {
-        console.error("❌ Fehler beim Proxy:", err.message);
-        res.status(500).json({ error: "Proxy-Fehler" });
-    }
+// ➕ CORS freigeben (optional, für Roblox Studio-Tests im Browser)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
 });
 
-app.listen(port, () => {
-    console.log(`✅ RoProxy läuft unter http://localhost:${port}`);
+// 📦 API-Endpunkt für Gamepasses
+app.get("/gamepasses/:userId", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const response = await axios.get(`https://games.roblox.com/v1/users/${userId}/game-passes`);
+    res.json({ success: true, gamepasses: response.data.data });
+  } catch (error) {
+    console.error("❌ Fehler beim Proxy:", error.message);
+    res.status(500).json({ success: false, error: "Proxy-Fehler" });
+  }
+});
+
+// ✅ Server starten
+app.listen(PORT, () => {
+  console.log(`✅ RoProxy läuft auf http://localhost:${PORT}`);
 });
